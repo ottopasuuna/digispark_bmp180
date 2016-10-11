@@ -16,6 +16,8 @@
   BSD license, all text above must be included in any redistribution
  ***************************************************************************/
 
+#ifdef __BMP180__
+#define __BMP180__
  #include "TinyWireM.h"
  #define Wire TinyWireM
 
@@ -87,7 +89,7 @@
     } bmp085_calib_data;
 /*=========================================================================*/
 
-static volatile bmp085_calib_data _bmp085_coeffs;   // Last read accelerometer data will be available here
+static bmp085_calib_data _bmp085_coeffs;   // Last read accelerometer data will be available here
 static uint8_t _bmp085Mode = BMP085_MODE_ULTRAHIGHRES;
 
 
@@ -100,8 +102,13 @@ static uint8_t _bmp085Mode = BMP085_MODE_ULTRAHIGHRES;
 static void writeCommand(byte reg, byte value)
 {
   Wire.beginTransmission((uint8_t)BMP085_ADDRESS);
-  Wire.write(reg);
-  Wire.write(value);
+  #if ARDUINO >= 100
+    Wire.write((uint8_t)reg);
+    Wire.write((uint8_t)value);
+  #else
+    Wire.send(reg);
+    Wire.send(value);
+  #endif
   Wire.endTransmission();
 }
 
@@ -110,17 +117,22 @@ static void writeCommand(byte reg, byte value)
     @brief  Reads an 8 bit value over I2C
 */
 /**************************************************************************/
-static uint8_t read8(byte reg)
+static void read8(byte reg, uint8_t *value)
 {
-  uint8_t value;
   Wire.beginTransmission((uint8_t)BMP085_ADDRESS);
-  Wire.write(reg);
+  #if ARDUINO >= 100
+    Wire.write((uint8_t)reg);
+  #else
+    Wire.send(reg);
+  #endif
   Wire.endTransmission();
-  
   Wire.requestFrom((uint8_t)BMP085_ADDRESS, (byte)1);
-  value = Wire.read();
+  #if ARDUINO >= 100
+    *value = Wire.read();
+  #else
+    *value = Wire.receive();
+  #endif  
   Wire.endTransmission();
-  return value;
 }
 
 /**************************************************************************/
@@ -128,17 +140,22 @@ static uint8_t read8(byte reg)
     @brief  Reads a 16 bit value over I2C
 */
 /**************************************************************************/
-static uint16_t read16(byte reg)
+static void read16(byte reg, uint16_t *value)
 {
-  uint16_t value;
   Wire.beginTransmission((uint8_t)BMP085_ADDRESS);
-  Wire.write(reg);
+  #if ARDUINO >= 100
+    Wire.write((uint8_t)reg);
+  #else
+    Wire.send(reg);
+  #endif
   Wire.endTransmission();
-  
   Wire.requestFrom((uint8_t)BMP085_ADDRESS, (byte)2);
-  value = (Wire.read() << 8) | Wire.read();
+  #if ARDUINO >= 100
+    *value = (Wire.read() << 8) | Wire.read();
+  #else
+    *value = (Wire.receive() << 8) | Wire.receive();
+  #endif  
   Wire.endTransmission();
-  return value;
 }
 
 /**************************************************************************/
@@ -146,11 +163,18 @@ static uint16_t read16(byte reg)
     @brief  Reads a signed 16 bit value over I2C
 */
 /**************************************************************************/
-static int16_t readS16(byte reg)
+static void readS16(byte reg, int16_t *value)
 {
-  return (int16_t)read16(reg);
+  uint16_t i;
+  read16(reg, &i);
+  *value = (int16_t)i;
 }
 
+/**************************************************************************/
+/*!
+    @brief  Reads the factory-set coefficients
+*/
+/**************************************************************************/
 static void readCoefficients(void)
 {
   #if BMP085_USE_DATASHEET_VALS
@@ -167,56 +191,184 @@ static void readCoefficients(void)
     _bmp085_coeffs.md  = 2868;
     _bmp085Mode        = 0;
   #else
-    _bmp085_coeffs.ac1 = readS16(BMP085_REGISTER_CAL_AC1);
-    _bmp085_coeffs.ac2 = readS16(BMP085_REGISTER_CAL_AC2);
-    _bmp085_coeffs.ac3 = readS16(BMP085_REGISTER_CAL_AC3);
-    _bmp085_coeffs.ac4 = read16(BMP085_REGISTER_CAL_AC4);
-    _bmp085_coeffs.ac5 = read16(BMP085_REGISTER_CAL_AC5);
-    _bmp085_coeffs.ac6 = read16(BMP085_REGISTER_CAL_AC6);
-    _bmp085_coeffs.b1 = readS16(BMP085_REGISTER_CAL_B1);
-    _bmp085_coeffs.b2 = readS16(BMP085_REGISTER_CAL_B2);
-    _bmp085_coeffs.mb = readS16(BMP085_REGISTER_CAL_MB);
-    _bmp085_coeffs.mc = readS16(BMP085_REGISTER_CAL_MC);
-    _bmp085_coeffs.md = readS16(BMP085_REGISTER_CAL_MD);
+    readS16(BMP085_REGISTER_CAL_AC1, &_bmp085_coeffs.ac1);
+    readS16(BMP085_REGISTER_CAL_AC2, &_bmp085_coeffs.ac2);
+    readS16(BMP085_REGISTER_CAL_AC3, &_bmp085_coeffs.ac3);
+    read16(BMP085_REGISTER_CAL_AC4, &_bmp085_coeffs.ac4);
+    read16(BMP085_REGISTER_CAL_AC5, &_bmp085_coeffs.ac5);
+    read16(BMP085_REGISTER_CAL_AC6, &_bmp085_coeffs.ac6);
+    readS16(BMP085_REGISTER_CAL_B1, &_bmp085_coeffs.b1);
+    readS16(BMP085_REGISTER_CAL_B2, &_bmp085_coeffs.b2);
+    readS16(BMP085_REGISTER_CAL_MB, &_bmp085_coeffs.mb);
+    readS16(BMP085_REGISTER_CAL_MC, &_bmp085_coeffs.mc);
+    readS16(BMP085_REGISTER_CAL_MD, &_bmp085_coeffs.md);
   #endif
 }
 
-int16_t getPressure() {
-  Wire.beginTransmission(0x77);
-  Wire.write(0xF4);
-  Wire.write(0x34);
-  Wire.endTransmission();
-
-  delay(10);
-
-  Wire.beginTransmission(0x77);
-  Wire.write(0xF6);
-  Wire.endTransmission();
-  Wire.requestFrom(0x77, (byte)2);
-  uint16_t pressure = (Wire.read() << 8) | Wire.read();
-  Wire.endTransmission();
-  return pressure;
-}
-
-static int readRawTemperature()
+/**************************************************************************/
+/*!
+*/
+/**************************************************************************/
+static void readRawTemperature(int32_t *temperature)
 {
-  int32_t temperature;
   #if BMP085_USE_DATASHEET_VALS
-    temperature = 27898;
+    *temperature = 27898;
   #else
     uint16_t t;
     writeCommand(BMP085_REGISTER_CONTROL, BMP085_REGISTER_READTEMPCMD);
     delay(5);
-    t = read16(BMP085_REGISTER_TEMPDATA);
-    temperature = t;
+    read16(BMP085_REGISTER_TEMPDATA, &t);
+    *temperature = t;
   #endif
 }
 
-float compensatedTemp() {
-  int32_t UT,B5;     // following ds convention
+/**************************************************************************/
+/*!
+*/
+/**************************************************************************/
+static void readRawPressure(int32_t *pressure)
+{
+  #if BMP085_USE_DATASHEET_VALS
+    *pressure = 23843;
+  #else
+    uint8_t  p8;
+    uint16_t p16;
+    int32_t  p32;
+
+    writeCommand(BMP085_REGISTER_CONTROL, BMP085_REGISTER_READPRESSURECMD + (_bmp085Mode << 6));
+    switch(_bmp085Mode)
+    {
+      case BMP085_MODE_ULTRALOWPOWER:
+        delay(5);
+        break;
+      case BMP085_MODE_STANDARD:
+        delay(8);
+        break;
+      case BMP085_MODE_HIGHRES:
+        delay(14);
+        break;
+      case BMP085_MODE_ULTRAHIGHRES:
+      default:
+        delay(26);
+        break;
+    }
+
+    read16(BMP085_REGISTER_PRESSUREDATA, &p16);
+    p32 = (uint32_t)p16 << 8;
+    read8(BMP085_REGISTER_PRESSUREDATA+2, &p8);
+    p32 += p8;
+    p32 >>= (8 - _bmp085Mode);
+    
+    *pressure = p32;
+  #endif
+}
+
+/**************************************************************************/
+/*!
+    @brief  Compute B5 coefficient used in temperature & pressure calcs.
+*/
+/**************************************************************************/
+int32_t computeB5(int32_t ut) {
+  int32_t X1 = (ut - (int32_t)_bmp085_coeffs.ac6) * ((int32_t)_bmp085_coeffs.ac5) >> 15;
+  int32_t X2 = ((int32_t)_bmp085_coeffs.mc << 11) / (X1+(int32_t)_bmp085_coeffs.md);
+  return X1 + X2;
+}
+
+
+
+ 
+/**************************************************************************/
+/*!
+    @brief  Setups the HW
+*/
+/**************************************************************************/
+bool bmpbegin(bmp085_mode_t mode)
+{
+  // Enable I2C
+  Wire.begin();
+
+  /* Mode boundary check */
+  if ((mode > BMP085_MODE_ULTRAHIGHRES) || (mode < 0))
+  {
+    mode = BMP085_MODE_ULTRAHIGHRES;
+  }
+
+  /* Make sure we have the right device */
+  uint8_t id;
+  read8(BMP085_REGISTER_CHIPID, &id);
+  if(id != 0x55)
+  {
+    return false;
+  }
+
+  /* Set the mode indicator */
+  _bmp085Mode = mode;
+
+  /* Coefficients need to be read once */
+  readCoefficients();
+    
+  return true;
+}
+
+/**************************************************************************/
+/*!
+    @brief  Gets the compensated pressure level in kPa
+*/
+/**************************************************************************/
+void getPressure(float *pressure)
+{
+  int32_t  ut = 0, up = 0, compp = 0;
+  int32_t  x1, x2, b5, b6, x3, b3, p;
+  uint32_t b4, b7;
+
+  /* Get the raw pressure and temperature values */
+  readRawTemperature(&ut);
+  readRawPressure(&up);
+
+  /* Temperature compensation */
+  b5 = computeB5(ut);
+
+  /* Pressure compensation */
+  b6 = b5 - 4000;
+  x1 = (_bmp085_coeffs.b2 * ((b6 * b6) >> 12)) >> 11;
+  x2 = (_bmp085_coeffs.ac2 * b6) >> 11;
+  x3 = x1 + x2;
+  b3 = (((((int32_t) _bmp085_coeffs.ac1) * 4 + x3) << _bmp085Mode) + 2) >> 2;
+  x1 = (_bmp085_coeffs.ac3 * b6) >> 13;
+  x2 = (_bmp085_coeffs.b1 * ((b6 * b6) >> 12)) >> 16;
+  x3 = ((x1 + x2) + 2) >> 2;
+  b4 = (_bmp085_coeffs.ac4 * (uint32_t) (x3 + 32768)) >> 15;
+  b7 = ((uint32_t) (up - b3) * (50000 >> _bmp085Mode));
+
+  if (b7 < 0x80000000)
+  {
+    p = (b7 << 1) / b4;
+  }
+  else
+  {
+    p = (b7 / b4) << 1;
+  }
+
+  x1 = (p >> 8) * (p >> 8);
+  x1 = (x1 * 3038) >> 16;
+  x2 = (-7357 * p) >> 16;
+  compp = p + ((x1 + x2 + 3791) >> 4);
+
+  /* Assign compensated pressure value */
+  *pressure = compp;
+}
+
+/**************************************************************************/
+/*!
+    @brief  Reads the temperatures in degrees Celsius
+*/
+/**************************************************************************/
+void getTemperature(float *temp)
+{
+  int32_t UT, X1, X2, B5;     // following ds convention
   float t;
 
-  UT = readRawTemperature();
+  readRawTemperature(&UT);
 
   #if BMP085_USE_DATASHEET_VALS
     // use datasheet numbers!
@@ -227,20 +379,91 @@ float compensatedTemp() {
     _bmp085_coeffs.md = 2868;
   #endif
 
-  int32_t X1 = (UT - (int32_t)_bmp085_coeffs.ac6) * ((int32_t)_bmp085_coeffs.ac5) >> 15;
-  int32_t X2 = ((int32_t)_bmp085_coeffs.mc << 11) / (X1+(int32_t)_bmp085_coeffs.md);
-  B5 =  X1 + X2;
+  B5 = computeB5(UT);
   t = (B5+8) >> 4;
   t /= 10;
-  return t;
 
+  *temp = t;
 }
 
-int compensatedPress() {
-  int32_t  ut = 0, up = 0, compp = 0;
-  int32_t  x1, x2, b5, b6, x3, b3, p;
-  uint32_t b4, b7;
-  ut = readRawTemperature();
-  up = getPressure();
+/**************************************************************************/
+/*!
+    Calculates the altitude (in meters) from the specified atmospheric
+    pressure (in hPa), and sea-level pressure (in hPa).
+    @param  seaLevel      Sea-level pressure in hPa
+    @param  atmospheric   Atmospheric pressure in hPa
+*/
+/**************************************************************************/
+float pressureToAltitude(float seaLevel, float atmospheric)
+{
+  // Equation taken from BMP180 datasheet (page 16):
+  //  http://www.adafruit.com/datasheets/BST-BMP180-DS000-09.pdf
+
+  // Note that using the equation from wikipedia can give bad results
+  // at high altitude.  See this thread for more information:
+  //  http://forums.adafruit.com/viewtopic.php?f=22&t=58064
   
+  return 44330.0 * (1.0 - pow(atmospheric / seaLevel, 0.1903));
 }
+
+/**************************************************************************/
+/*!
+    Calculates the altitude (in meters) from the specified atmospheric
+    pressure (in hPa), and sea-level pressure (in hPa).  Note that this
+    function just calls the overload of pressureToAltitude which takes
+    seaLevel and atmospheric pressure--temperature is ignored.  The original
+    implementation of this function was based on calculations from Wikipedia
+    which are not accurate at higher altitudes.  To keep compatibility with
+    old code this function remains with the same interface, but it calls the
+    more accurate calculation.
+    @param  seaLevel      Sea-level pressure in hPa
+    @param  atmospheric   Atmospheric pressure in hPa
+    @param  temp          Temperature in degrees Celsius
+*/
+/**************************************************************************/
+float pressureToAltitude(float seaLevel, float atmospheric, float temp)
+{
+  return pressureToAltitude(seaLevel, atmospheric);
+}
+
+/**************************************************************************/
+/*!
+    Calculates the pressure at sea level (in hPa) from the specified altitude 
+    (in meters), and atmospheric pressure (in hPa).  
+    @param  altitude      Altitude in meters
+    @param  atmospheric   Atmospheric pressure in hPa
+*/
+/**************************************************************************/
+float seaLevelForAltitude(float altitude, float atmospheric)
+{
+  // Equation taken from BMP180 datasheet (page 17):
+  //  http://www.adafruit.com/datasheets/BST-BMP180-DS000-09.pdf
+
+  // Note that using the equation from wikipedia can give bad results
+  // at high altitude.  See this thread for more information:
+  //  http://forums.adafruit.com/viewtopic.php?f=22&t=58064
+  
+  return atmospheric / pow(1.0 - (altitude/44330.0), 5.255);
+}
+
+/**************************************************************************/
+/*!
+    Calculates the pressure at sea level (in hPa) from the specified altitude 
+    (in meters), and atmospheric pressure (in hPa).  Note that this
+    function just calls the overload of seaLevelForAltitude which takes
+    altitude and atmospheric pressure--temperature is ignored.  The original
+    implementation of this function was based on calculations from Wikipedia
+    which are not accurate at higher altitudes.  To keep compatibility with
+    old code this function remains with the same interface, but it calls the
+    more accurate calculation.
+    @param  altitude      Altitude in meters
+    @param  atmospheric   Atmospheric pressure in hPa
+    @param  temp          Temperature in degrees Celsius
+*/
+/**************************************************************************/
+float seaLevelForAltitude(float altitude, float atmospheric, float temp)
+{
+  return seaLevelForAltitude(altitude, atmospheric);
+}
+
+#endif
