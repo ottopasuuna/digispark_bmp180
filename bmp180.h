@@ -16,8 +16,6 @@
   BSD license, all text above must be included in any redistribution
  ***************************************************************************/
 
-#ifdef __BMP180__
-#define __BMP180__
  #include "TinyWireM.h"
  #define Wire TinyWireM
 
@@ -102,13 +100,10 @@ static uint8_t _bmp085Mode = BMP085_MODE_ULTRAHIGHRES;
 static void writeCommand(byte reg, byte value)
 {
   Wire.beginTransmission((uint8_t)BMP085_ADDRESS);
-  #if ARDUINO >= 100
+
     Wire.write((uint8_t)reg);
     Wire.write((uint8_t)value);
-  #else
-    Wire.send(reg);
-    Wire.send(value);
-  #endif
+
   Wire.endTransmission();
 }
 
@@ -120,19 +115,13 @@ static void writeCommand(byte reg, byte value)
 static void read8(byte reg, uint8_t *value)
 {
   Wire.beginTransmission((uint8_t)BMP085_ADDRESS);
-  #if ARDUINO >= 100
-    Wire.write((uint8_t)reg);
-  #else
-    Wire.send(reg);
-  #endif
+
+  Wire.write((uint8_t)reg);
+
   Wire.endTransmission();
   Wire.requestFrom((uint8_t)BMP085_ADDRESS, (byte)1);
-  #if ARDUINO >= 100
     *value = Wire.read();
-  #else
-    *value = Wire.receive();
-  #endif  
-  Wire.endTransmission();
+ // Wire.endTransmission();
 }
 
 /**************************************************************************/
@@ -143,19 +132,11 @@ static void read8(byte reg, uint8_t *value)
 static void read16(byte reg, uint16_t *value)
 {
   Wire.beginTransmission((uint8_t)BMP085_ADDRESS);
-  #if ARDUINO >= 100
     Wire.write((uint8_t)reg);
-  #else
-    Wire.send(reg);
-  #endif
   Wire.endTransmission();
   Wire.requestFrom((uint8_t)BMP085_ADDRESS, (byte)2);
-  #if ARDUINO >= 100
     *value = (Wire.read() << 8) | Wire.read();
-  #else
-    *value = (Wire.receive() << 8) | Wire.receive();
-  #endif  
-  Wire.endTransmission();
+  //Wire.endTransmission();
 }
 
 /**************************************************************************/
@@ -466,4 +447,3 @@ float seaLevelForAltitude(float altitude, float atmospheric, float temp)
   return seaLevelForAltitude(altitude, atmospheric);
 }
 
-#endif
