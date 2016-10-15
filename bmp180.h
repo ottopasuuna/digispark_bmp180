@@ -263,7 +263,7 @@ int32_t computeB5(int32_t ut) {
     @brief  Setups the HW
 */
 /**************************************************************************/
-bool bmpbegin(bmp085_mode_t mode)
+bool bmpinit(bmp085_mode_t mode)
 {
   // Enable I2C
   Wire.begin();
@@ -296,7 +296,7 @@ bool bmpbegin(bmp085_mode_t mode)
     @brief  Gets the compensated pressure level in kPa
 */
 /**************************************************************************/
-void getPressure(float *pressure)
+float getPressure()
 {
   int32_t  ut = 0, up = 0, compp = 0;
   int32_t  x1, x2, b5, b6, x3, b3, p;
@@ -335,8 +335,7 @@ void getPressure(float *pressure)
   x2 = (-7357 * p) >> 16;
   compp = p + ((x1 + x2 + 3791) >> 4);
 
-  /* Assign compensated pressure value */
-  *pressure = compp;
+  return compp;
 }
 
 /**************************************************************************/
@@ -344,7 +343,7 @@ void getPressure(float *pressure)
     @brief  Reads the temperatures in degrees Celsius
 */
 /**************************************************************************/
-void getTemperature(float *temp)
+float getTemperature()
 {
   int32_t UT, X1, X2, B5;     // following ds convention
   float t;
@@ -364,7 +363,7 @@ void getTemperature(float *temp)
   t = (B5+8) >> 4;
   t /= 10;
 
-  *temp = t;
+  return t;
 }
 
 /**************************************************************************/
@@ -405,45 +404,5 @@ float pressureToAltitude(float seaLevel, float atmospheric)
 float pressureToAltitude(float seaLevel, float atmospheric, float temp)
 {
   return pressureToAltitude(seaLevel, atmospheric);
-}
-
-/**************************************************************************/
-/*!
-    Calculates the pressure at sea level (in hPa) from the specified altitude 
-    (in meters), and atmospheric pressure (in hPa).  
-    @param  altitude      Altitude in meters
-    @param  atmospheric   Atmospheric pressure in hPa
-*/
-/**************************************************************************/
-float seaLevelForAltitude(float altitude, float atmospheric)
-{
-  // Equation taken from BMP180 datasheet (page 17):
-  //  http://www.adafruit.com/datasheets/BST-BMP180-DS000-09.pdf
-
-  // Note that using the equation from wikipedia can give bad results
-  // at high altitude.  See this thread for more information:
-  //  http://forums.adafruit.com/viewtopic.php?f=22&t=58064
-  
-  return atmospheric / pow(1.0 - (altitude/44330.0), 5.255);
-}
-
-/**************************************************************************/
-/*!
-    Calculates the pressure at sea level (in hPa) from the specified altitude 
-    (in meters), and atmospheric pressure (in hPa).  Note that this
-    function just calls the overload of seaLevelForAltitude which takes
-    altitude and atmospheric pressure--temperature is ignored.  The original
-    implementation of this function was based on calculations from Wikipedia
-    which are not accurate at higher altitudes.  To keep compatibility with
-    old code this function remains with the same interface, but it calls the
-    more accurate calculation.
-    @param  altitude      Altitude in meters
-    @param  atmospheric   Atmospheric pressure in hPa
-    @param  temp          Temperature in degrees Celsius
-*/
-/**************************************************************************/
-float seaLevelForAltitude(float altitude, float atmospheric, float temp)
-{
-  return seaLevelForAltitude(altitude, atmospheric);
 }
 

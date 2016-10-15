@@ -14,7 +14,8 @@
 #elif SERIAL_MODE == 0
   #include <Adafruit_Sensor.h>
   #include "bmp180.h"
- #endif
+
+#endif
 
 
 void setup() {
@@ -24,7 +25,7 @@ void setup() {
   #elif SERIAL_MODE == 2
   Serial.begin(9600);
   #elif SERIAL_MODE == 0
-  bmpbegin(BMP085_MODE_ULTRAHIGHRES);
+  bmpinit(BMP085_MODE_ULTRAHIGHRES);
   #endif
 
 }
@@ -39,11 +40,9 @@ void loop() {
   Serial.println(temperature);
 #else
   digitalWrite(1, HIGH);
-   float temperature;
-   getTemperature(&temperature);
-   float pressure;
-   getPressure(&pressure);
-   float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
+   float temperature = getTemperature();
+   float pressure = getPressure();
+   float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA; // change to real value
    float altitude = pressureToAltitude(seaLevelPressure, pressure/100);
 
    eeprom_write_float(0, altitude);
@@ -53,3 +52,4 @@ void loop() {
 #endif
   delay(1000);
 }
+
